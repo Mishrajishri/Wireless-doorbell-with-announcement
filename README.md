@@ -69,8 +69,8 @@ For each ESP32 unit (one RX, one TX):
 
 1.  **Clone the Repository:**
     ```bash
-    git clone <your-repository-url>
-    cd <your-repository-name>
+    git clone https://github.com/Mishrajishri/Wireless-doorbell-with-announcement.git
+    cd Wireless-doorbell-with-announcement
     ```
 
 2.  **Install Libraries:** Ensure all required libraries (especially `Audio.h`) are installed in your Arduino IDE or PlatformIO project.
