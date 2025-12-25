@@ -1,0 +1,217 @@
+# ESP-NOW Doorbell Intercom System - Detailed Circuit Diagram
+
+This document provides a detailed text-based description of the circuit connections for both the Receiver (RX) and Transmitter (TX) ESP32 units. It is highly recommended to use a visual diagram tool like Fritzing to create an actual circuit schematic based on this information for easier assembly.
+
+## General Notes:
+
+*   **Power:** All modules should be powered from the ESP32's 3.3V or 5V (VIN) pin, depending on the module's requirements.
+*   **Ground:** Ensure all components share a common ground (GND).
+*   **Resistors:** Use appropriate current-limiting resistors for LEDs (typically 220 Ohm for a standard LED with 3.3V). Buttons are configured with internal pull-up resistors, so no external pull-ups are needed; connect directly to GND.
+
+## Component Pin Definitions (as used in `rx.ino` and `tx.ino`):
+
+*   `DOORBELL_BUTTON`: GPIO 4
+*   `TALK_BUTTON`: GPIO 5
+*   `MIC_PIN`: GPIO 34 (Analog Input)
+*   `SPEAKER_PIN`: GPIO 14 (I2S Data Out)
+*   `STATUS_LED`: GPIO 2 (Digital Output)
+
+**I2S Pins for Audio (Common for both units):**
+
+*   `bck_io_num`: GPIO 12 (Bit Clock)
+*   `ws_io_num`: GPIO 13 (Word Select / Left-Right Clock)
+*   `data_out_num`: GPIO 14 (I2S Data Out to Speaker Amplifier)
+*   `data_in_num`: GPIO 34 (I2S Data In from Microphone Amplifier)
+
+## RX Unit Circuit Connections:
+
+### ESP32 Development Board
+
+*   **Power:**
+    *   5V Pin -> Breadboard 5V Rail
+    *   GND Pin -> Breadboard GND Rail
+
+### Speaker Module (e.g., connected to a simple audio amplifier if needed)
+
+*   **Speaker Positive Terminal** -> ESP32 GPIO 14 (`SPEAKER_PIN`, via I2S)
+*   **Speaker Negative Terminal** -> Breadboard GND Rail
+
+### Microphone Amplifier Module (e.g., MAX9814 or similar, adjust for specific module)
+
+*   **Microphone Audio Output** -> ESP32 GPIO 34 (`MIC_PIN`)
+*   **Microphone VCC** -> Breadboard 3.3V Rail (or 5V if module requires)
+*   **Microphone GND** -> Breadboard GND Rail
+
+### Push Button 1 (DOORBELL_BUTTON)
+
+*   **Button Terminal 1** -> ESP32 GPIO 4 (`DOORBELL_BUTTON`)
+*   **Button Terminal 2** -> Breadboard GND Rail
+
+### Push Button 2 (TALK_BUTTON)
+
+*   **Button Terminal 1** -> ESP32 GPIO 5 (`TALK_BUTTON`)
+*   **Button Terminal 2** -> Breadboard GND Rail
+
+### Status LED (Optional)
+
+*   **LED Anode (Longer Leg)** -> Current Limiting Resistor (e.g., 220 Ohm) -> ESP32 GPIO 2 (`STATUS_LED`)
+*   **LED Cathode (Shorter Leg)** -> Breadboard GND Rail
+
+### I2S Specific Connections (for direct I2S audio, if not using `Audio.h` for all playback)
+
+*   **I2S BCK** -> ESP32 GPIO 12
+*   **I2S WS** -> ESP32 GPIO 13
+*   **I2S DOUT (from ESP32 to DAC/Speaker Amp)** -> ESP32 GPIO 14
+*   **I2S DIN (from ADC/Mic Amp to ESP32)** -> ESP32 GPIO 34
+
+## TX Unit Circuit Connections:
+
+(The TX unit has identical hardware connections to the RX unit, but communicates with the RX unit's MAC address.)
+
+### ESP32 Development Board
+
+*   **Power:**
+    *   5V Pin -> Breadboard 5V Rail
+    *   GND Pin -> Breadboard GND Rail
+
+### Speaker Module
+
+*   **Speaker Positive Terminal** -> ESP32 GPIO 14 (`SPEAKER_PIN`, via I2S)
+*   **Speaker Negative Terminal** -> Breadboard GND Rail
+
+### Microphone Amplifier Module
+
+*   **Microphone Audio Output** -> ESP32 GPIO 34 (`MIC_PIN`)
+*   **Microphone VCC** -> Breadboard 3.3V Rail (or 5V if module requires)
+*   **Microphone GND** -> Breadboard GND Rail
+
+### Push Button 1 (DOORBELL_BUTTON)
+
+*   **Button Terminal 1** -> ESP32 GPIO 4 (`DOORBELL_BUTTON`)
+*   **Button Terminal 2** -> Breadboard GND Rail
+
+### Push Button 2 (TALK_BUTTON)
+
+*   **Button Terminal 1** -> ESP32 GPIO 5 (`TALK_BUTTON`)
+*   **Button Terminal 2** -> Breadboard GND Rail
+
+### Status LED (Optional)
+
+*   **LED Anode (Longer Leg)** -> Current Limiting Resistor (e.g., 220 Ohm) -> ESP32 GPIO 2 (`STATUS_LED`)
+*   **LED Cathode (Shorter Leg)** -> Breadboard GND Rail
+
+### I2S Specific Connections
+
+*   **I2S BCK** -> ESP32 GPIO 12
+*   **I2S WS** -> ESP32 GPIO 13
+*   **I2S DOUT (from ESP32 to DAC/Speaker Amp)** -> ESP32 GPIO 14
+*   **I2S DIN (from ADC/Mic Amp to ESP32)** -> ESP32 GPIO 34
+
+## ASCII Circuit Diagrams
+
+### RX Unit Full Circuit Diagram:
+
+```
+ESP32 Dev Board                    Components
++---------------------------------+---------------------------------+
+|                                 |                                 |
+|  [5V] -----> 5V Rail           |  Speaker Module:                |
+|  [GND] ----> GND Rail          |    +---+                        |
+|                                 |    |   |                        |
+|  GPIO 14 ----> SPEAKER_PIN ---->| (+) Speaker (+)               |
+|                                 |    |   |                        |
+|  GPIO 34 <---- MIC_PIN <-------|    +---+                        |
+|                                 |    |   |                        |
+|  GPIO 4  <---- DOORBELL_BUTTON |    +---+ GND                    |
+|                                 |                                 |
+|  GPIO 5  <---- TALK_BUTTON     |  Microphone Amplifier:         |
+|                                 |    +---+                        |
+|  GPIO 2  ----> STATUS_LED ----->|    |   |                        |
+|                                 |    |   | OUT --> GPIO 34        |
+|  GPIO 12 ----> I2S BCK          |    |   |                        |
+|  GPIO 13 ----> I2S WS           |    +---+                        |
+|  GPIO 14 ----> I2S DOUT         |    |   | VCC --> 3.3V           |
+|  GPIO 34 <---- I2S DIN          |    +---+                        |
+|                                 |    |   | GND --> GND            |
++---------------------------------+---------------------------------+
+                                 |
+                    Buttons:     |    LED:
+                       +---+     |    +---+
+                       |   |     |    |   |
+    GPIO 4 <-----------|   |-----|    |   |-----> GPIO 2
+                       |   |     |  [220Ω]   |
+                       +---+     |    |   |
+                         |       |    +---+
+                        GND      |      |
+                                 |     GND
+                                 +---------------------------------+
+```
+
+### TX Unit Full Circuit Diagram:
+
+```
+ESP32 Dev Board                    Components
++---------------------------------+---------------------------------+
+|                                 |                                 |
+|  [5V] -----> 5V Rail           |  Speaker Module:                |
+|  [GND] ----> GND Rail          |    +---+                        |
+|                                 |    |   |                        |
+|  GPIO 14 ----> SPEAKER_PIN ---->| (+) Speaker (+)               |
+|                                 |    |   |                        |
+|  GPIO 34 <---- MIC_PIN <-------|    +---+                        |
+|                                 |    |   |                        |
+|  GPIO 4  <---- DOORBELL_BUTTON |    +---+ GND                    |
+|                                 |                                 |
+|  GPIO 5  <---- TALK_BUTTON     |  Microphone Amplifier:         |
+|                                 |    +---+                        |
+|  GPIO 2  ----> STATUS_LED ----->|    |   |                        |
+|                                 |    |   | OUT --> GPIO 34        |
+|  GPIO 12 ----> I2S BCK          |    |   |                        |
+|  GPIO 13 ----> I2S WS           |    +---+                        |
+|  GPIO 14 ----> I2S DOUT         |    |   | VCC --> 3.3V           |
+|  GPIO 34 <---- I2S DIN          |    +---+                        |
+|                                 |    |   | GND --> GND            |
++---------------------------------+---------------------------------+
+                                 |
+                    Buttons:     |    LED:
+                       +---+     |    +---+
+                       |   |     |    |   |
+    GPIO 4 <-----------|   |-----|    |   |-----> GPIO 2
+                       |   |     |  [220Ω]   |
+                       +---+     |    |   |
+                         |       |    +---+
+                        GND      |      |
+                                 |     GND
+                                 +---------------------------------+
+```
+
+### Wiring Legend:
+- `---->` : Digital Output / Power Supply
+- `<----` : Digital Input / Signal Input
+- `[220Ω]` : 220 Ohm Current Limiting Resistor
+- `(+)` : Positive Terminal
+- `GND` : Ground Connection
+- `[5V]` : 5V Power Pin
+- `[GND]` : Ground Pin
+
+### Breadboard Layout Suggestion:
+```
+ESP32 Board Position: Columns 10-20, Row A
+Power Rails: Left = 5V, Right = GND
+Components Layout:
+- Speaker: Columns 1-5, Row C
+- Microphone Amp: Columns 22-26, Row C
+- Buttons: Columns 1-5, Row E (Doorbell), Row G (Talk)
+- LED: Columns 22-26, Row E
+- Connecting Wires: Use jumper wires for all connections
+```
+
+## Important Considerations for Wiring:
+
+*   **Breadboard vs. PCB:** For a more permanent solution, consider designing a custom PCB or using stripboard/perfboard.
+*   **Cable Lengths:** Keep audio signal wires relatively short to minimize noise.
+*   **Power Filtering:** Add capacitors near the power pins of the ESP32 and audio modules to help stabilize power and reduce noise.
+*   **Speaker Amplifier:** For louder audio, you may need a dedicated speaker amplifier module (e.g., PAM8403) connected to the `SPEAKER_PIN`.
+*   **Microphone Amplifier:** Most electret microphones require an amplifier. Ensure your microphone module provides an amplified output suitable for the ESP32's ADC input range.
+
+This detailed description should allow you to accurately wire up your ESP-NOW Doorbell Intercom System. Refer to the code in `rx.ino` and `tx.ino` for the exact GPIO pin assignments.
