@@ -5,7 +5,7 @@
 #include <driver/i2s.h>
 
 // MAC addresses
-uint8_t txMAC[] = {0x00, 0x70, 0x07, 0x7C, 0x4A, 0x88};
+uint8_t txMAC[] = {0x80, 0xF3, 0xDA, 0x63, 0x57, 0x58};
 
 // Pins
 #define DOORBELL_BUTTON 4
@@ -13,6 +13,7 @@ uint8_t txMAC[] = {0x00, 0x70, 0x07, 0x7C, 0x4A, 0x88};
 #define MIC_PIN 34
 #define SPEAKER_PIN 14  // Changed to match I2S data_out_num
 #define STATUS_LED 2
+#define BUZZER_PIN SPEAKER_PIN
 
 // Audio
 Audio audio;
@@ -22,6 +23,21 @@ typedef struct {
   int type; // 1: chime, 2: audio
   uint8_t data[240];
 } packet_t;
+
+// Indian Railway announcement chime function
+void playRailwayAnnouncementChime() {
+  // Classic Indian Railway announcement chime - rising arpeggio
+  // C5 - E5 - G5 - C6 pattern (approximately 2-3 seconds)
+  tone(BUZZER_PIN, 523, 120);  // C5 - ting
+  delay(150);
+  tone(BUZZER_PIN, 659, 120);  // E5 - ting
+  delay(150);
+  tone(BUZZER_PIN, 784, 120);  // G5 - ting
+  delay(150);
+  tone(BUZZER_PIN, 1047, 200); // C6 - final ting (slightly longer)
+  delay(250);
+  noTone(BUZZER_PIN);
+}
 
 
 // ESP-NOW callback
@@ -33,9 +49,8 @@ void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData,
   packet_t receivedPacket; // Local packet for received data
   memcpy(&receivedPacket, incomingData, sizeof(packet_t));
   if (receivedPacket.type == 1) {
-    // Play chime
-    audio.connecttoFS(SPIFFS, "/doorbellsound.mp3");
-    audio.loop();
+    // Play railway announcement chime
+    playRailwayAnnouncementChime();
   } else if (receivedPacket.type == 2) {
     // Play voice
     size_t bytes_written;
@@ -139,8 +154,8 @@ void loop() {
   if (lastDoorbell == HIGH && currentDoorbell == LOW) {
     // Debounce
     delay(50);
-    // Play chime locally
-    audio.connecttoFS(SPIFFS, "/doorbellsound.mp3");
+    // Play railway announcement chime locally
+    playRailwayAnnouncementChime();
     // Send chime to TX
     packet_t chimePacket; // Local packet for doorbell chime
     chimePacket.type = 1;

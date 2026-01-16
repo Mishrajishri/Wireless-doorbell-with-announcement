@@ -13,10 +13,11 @@ This document provides comprehensive pin-by-pin wiring guides for both RX (Recei
 - **Microphone:** MAX9814 Electret Microphone Amplifier Module (or similar with AGC)
   - Supply Voltage: 3.3V-5V
   - Output: Analog signal (0-3.3V range)
-- **Speaker:** 8Ω, 0.5W minimum speaker
+- **Speaker:** 8Ω, 0.5W minimum speaker (serves dual purpose for chime and voice)
 - **Speaker Amplifier:** PAM8403 3W Stereo Audio Amplifier Module (recommended for better volume)
   - Supply Voltage: 5V
-  - Input: I2S or analog signal
+  - Input: I2S for voice, PWM for chime tones
+- **No separate buzzer needed** - speaker handles both chime and voice communication
 
 ### Input Components
 - **Push Buttons:** 2x Momentary tactile switches (6mm x 6mm recommended)
@@ -144,7 +145,7 @@ Speaker - Terminal → Breadboard GND Rail
 ## Testing Connections
 
 1. Power on ESP32 - STATUS_LED should light up if initialization successful
-2. Press doorbell button - should hear chime (if SPIFFS file uploaded)
+2. Press doorbell button - should hear Indian Railway announcement chime (rising tone pattern)
 3. Hold talk button - should transmit audio (test with paired unit)
 4. Check serial output for any initialization errors
 
