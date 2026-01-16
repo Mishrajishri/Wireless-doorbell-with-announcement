@@ -23,7 +23,6 @@ typedef struct {
   uint8_t data[240];
 } packet_t;
 
-packet_t packet;
 
 // ESP-NOW callback
 void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
@@ -31,15 +30,16 @@ void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
 }
 
 void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
-  memcpy(&packet, incomingData, sizeof(packet));
-  if (packet.type == 1) {
+  packet_t receivedPacket; // Local packet for received data
+  memcpy(&receivedPacket, incomingData, sizeof(packet_t));
+  if (receivedPacket.type == 1) {
     // Play chime
     audio.connecttoFS(SPIFFS, "/doorbellsound.mp3");
     audio.loop();
-  } else if (packet.type == 2) {
+  } else if (receivedPacket.type == 2) {
     // Play voice
     size_t bytes_written;
-    i2s_write(I2S_NUM_1, packet.data, 240, &bytes_written, portMAX_DELAY);
+    i2s_write(I2S_NUM_1, receivedPacket.data, 240, &bytes_written, portMAX_DELAY);
   }
 }
 
@@ -47,12 +47,13 @@ void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData,
 void audioTransmitTask(void *pvParameters) {
   while (true) {
     if (digitalRead(TALK_BUTTON) == LOW) {
-      packet.type = 2;
+      packet_t txPacket; // Local packet for transmission
+      txPacket.type = 2;
       for (int i = 0; i < 240; i++) {
-        packet.data[i] = analogRead(MIC_PIN) >> 4;
+        txPacket.data[i] = analogRead(MIC_PIN) >> 4;
         delayMicroseconds(125); // 8kHz
       }
-      esp_now_send(txMAC, (uint8_t *)&packet, sizeof(packet));
+      esp_now_send(txMAC, (uint8_t *)&txPacket, sizeof(packet_t));
     } else {
       vTaskDelay(10 / portTICK_PERIOD_MS);
     }
@@ -140,9 +141,10 @@ void loop() {
     delay(50);
     // Play chime locally
     audio.connecttoFS(SPIFFS, "/doorbellsound.mp3");
-    // Send to TX
-    packet.type = 1;
-    esp_now_send(txMAC, (uint8_t *)&packet, sizeof(packet));
+    // Send chime to TX
+    packet_t chimePacket; // Local packet for doorbell chime
+    chimePacket.type = 1;
+    esp_now_send(txMAC, (uint8_t *)&chimePacket, sizeof(packet_t));
   }
   lastDoorbell = currentDoorbell;
 
