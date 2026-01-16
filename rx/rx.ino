@@ -1,7 +1,5 @@
 #include <WiFi.h>
 #include <esp_now.h>
-#include <SPIFFS.h>
-#include <Audio.h>
 #include <driver/i2s.h>
 
 // MAC addresses
@@ -9,14 +7,10 @@ uint8_t txMAC[] = {0x80, 0xF3, 0xDA, 0x63, 0x57, 0x58};
 
 // Pins
 #define DOORBELL_BUTTON 4
-#define TALK_BUTTON 5
-#define MIC_PIN 34
-#define SPEAKER_PIN 14  // Changed to match I2S data_out_num
+#define SPEAKER_PIN 14
 #define STATUS_LED 2
-#define BUZZER_PIN SPEAKER_PIN
 
-// Audio
-Audio audio;
+// Removed unused Audio library
 
 // Packet structure
 typedef struct {
@@ -24,20 +18,7 @@ typedef struct {
   uint8_t data[240];
 } packet_t;
 
-// Indian Railway announcement chime function
-void playRailwayAnnouncementChime() {
-  // Classic Indian Railway announcement chime - rising arpeggio
-  // C5 - E5 - G5 - C6 pattern (approximately 2-3 seconds)
-  tone(BUZZER_PIN, 523, 120);  // C5 - ting
-  delay(150);
-  tone(BUZZER_PIN, 659, 120);  // E5 - ting
-  delay(150);
-  tone(BUZZER_PIN, 784, 120);  // G5 - ting
-  delay(150);
-  tone(BUZZER_PIN, 1047, 200); // C6 - final ting (slightly longer)
-  delay(250);
-  noTone(BUZZER_PIN);
-}
+
 
 
 // ESP-NOW callback
@@ -48,55 +29,24 @@ void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
 void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
   packet_t receivedPacket; // Local packet for received data
   memcpy(&receivedPacket, incomingData, sizeof(packet_t));
-  if (receivedPacket.type == 1) {
-    // Play railway announcement chime
-    playRailwayAnnouncementChime();
-  } else if (receivedPacket.type == 2) {
+  if (receivedPacket.type == 2) {
     // Play voice
+    digitalWrite(STATUS_LED, HIGH); // LED on during audio playback
     size_t bytes_written;
     i2s_write(I2S_NUM_1, receivedPacket.data, 240, &bytes_written, portMAX_DELAY);
+    digitalWrite(STATUS_LED, LOW); // LED off after playback
   }
 }
 
-// Task for audio transmission
-void audioTransmitTask(void *pvParameters) {
-  while (true) {
-    if (digitalRead(TALK_BUTTON) == LOW) {
-      packet_t txPacket; // Local packet for transmission
-      txPacket.type = 2;
-      for (int i = 0; i < 240; i++) {
-        txPacket.data[i] = analogRead(MIC_PIN) >> 4;
-        delayMicroseconds(125); // 8kHz
-      }
-      esp_now_send(txMAC, (uint8_t *)&txPacket, sizeof(packet_t));
-    } else {
-      vTaskDelay(10 / portTICK_PERIOD_MS);
-    }
-  }
-}
+
 
 void setup() {
   Serial.begin(115200);
 
-  // SPIFFS
-  if (!SPIFFS.begin(true)) {
-    Serial.println("SPIFFS Mount Failed");
-    return;
-  }
-  if (!SPIFFS.exists("/doorbellsound.mp3")) {
-    Serial.println("doorbellsound.mp3 not found in SPIFFS");
-    return;
-  }
-
   // Buttons and LED
   pinMode(DOORBELL_BUTTON, INPUT_PULLUP);
-  pinMode(TALK_BUTTON, INPUT_PULLUP);
   pinMode(STATUS_LED, OUTPUT);
   digitalWrite(STATUS_LED, LOW); // Off initially
-
-  // Audio for chime
-  audio.setPinout(12, 13, SPEAKER_PIN);
-  audio.setVolume(10);
 
   // I2S for voice
   i2s_config_t i2s_config_voice = {
@@ -106,8 +56,8 @@ void setup() {
     .channel_format = I2S_CHANNEL_FMT_ONLY_LEFT,
     .communication_format = I2S_COMM_FORMAT_I2S,
     .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
-    .dma_buf_count = 8,
-    .dma_buf_len = 64
+    .dma_buf_count = 4,
+    .dma_buf_len = 32
   };
   i2s_pin_config_t pin_config_voice = {
     .bck_io_num = 12,
@@ -139,9 +89,6 @@ void setup() {
     return;
   }
 
-  // Create audio transmit task
-  xTaskCreate(audioTransmitTask, "AudioTransmit", 2048, NULL, 1, NULL);
-
   // Indicate successful initialization
   digitalWrite(STATUS_LED, HIGH);
   Serial.println("RX unit initialized successfully");
@@ -154,15 +101,12 @@ void loop() {
   if (lastDoorbell == HIGH && currentDoorbell == LOW) {
     // Debounce
     delay(50);
-    // Play railway announcement chime locally
-    playRailwayAnnouncementChime();
     // Send chime to TX
-    packet_t chimePacket; // Local packet for doorbell chime
+    digitalWrite(STATUS_LED, HIGH); // LED on during chime send
+    packet_t chimePacket;
     chimePacket.type = 1;
     esp_now_send(txMAC, (uint8_t *)&chimePacket, sizeof(packet_t));
+    digitalWrite(STATUS_LED, LOW); // LED off after send
   }
   lastDoorbell = currentDoorbell;
-
-  // Audio loop
-  audio.loop();
 }
