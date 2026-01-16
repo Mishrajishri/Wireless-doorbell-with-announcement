@@ -34,9 +34,9 @@ For each ESP32 unit (one RX, one TX):
     *   `ESP32-AudioI2S` by Earle F. Philhower (for MP3 playback) - **NOT the generic "Audio" library**
     *   `driver/i2s.h` (comes with ESP32 BSP)
 
-## Circuit Diagram (Conceptual)
+## Circuit Diagram
 
-**Note:** A detailed Fritzing or similar diagram will be provided in a separate file (e.g., `circuit_diagram.fzz` or `circuit_diagram.png`).
+**Note:** A detailed wiring guide with pin-by-pin connections is provided in `circuit_diagram.md` for error-free assembly.
 
 **Common Connections for both RX and TX:**
 
