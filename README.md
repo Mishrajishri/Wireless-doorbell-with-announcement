@@ -9,6 +9,8 @@ This project implements a simplified wireless master-slave intercom system using
 *   **LED Status Indicators:** Visual feedback for active states
 *   **Simple Components:** Uses basic analog microphone and speakers (no fancy modules)
 *   **Optimized Size:** Reduced from 1.7MB to ~600KB flash usage
+*   **Production-Ready Reliability:** Non-blocking ISRs, mutex protection, error handling
+*   **FreeRTOS Implementation:** Dedicated tasks for chime playing and audio playback
 
 ## Hardware Requirements
 

@@ -2,8 +2,9 @@
 #include <esp_now.h>
 #include <driver/i2s.h>
 
-// MAC addresses
+// MAC addresses - UPDATE THESE with your actual ESP32 MAC addresses
 uint8_t txMAC[] = {0x80, 0xF3, 0xDA, 0x63, 0x57, 0x58};
+uint8_t rxMAC[] = {0x00, 0x70, 0x07, 0x7C, 0x4A, 0x88}; // This device's MAC (for reference)
 
 // Pins
 #define DOORBELL_BUTTON 4
@@ -18,23 +19,42 @@ typedef struct {
   uint8_t data[240];
 } packet_t;
 
+// Audio queue for non-blocking playback
+QueueHandle_t audioQueue;
+
+// Audio playback task function
+void audioPlaybackTask(void *pvParameters) {
+  packet_t audioPacket;
+  while (true) {
+    // Wait for audio data from queue
+    if (xQueueReceive(audioQueue, &audioPacket, portMAX_DELAY) == pdTRUE) {
+      // Play the audio data
+      digitalWrite(STATUS_LED, HIGH); // LED on during playback
+      size_t bytes_written;
+      i2s_write(I2S_NUM_1, audioPacket.data, 240, &bytes_written, portMAX_DELAY);
+      digitalWrite(STATUS_LED, LOW); // LED off after playback
+    }
+  }
+}
+
 
 
 
 // ESP-NOW callback
 void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
-  // Optional: handle send status
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    // Serial.println("RX: Send success");
+  } else {
+    Serial.println("RX: Send failed");
+  }
 }
 
 void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
   packet_t receivedPacket; // Local packet for received data
   memcpy(&receivedPacket, incomingData, sizeof(packet_t));
   if (receivedPacket.type == 2) {
-    // Play voice
-    digitalWrite(STATUS_LED, HIGH); // LED on during audio playback
-    size_t bytes_written;
-    i2s_write(I2S_NUM_1, receivedPacket.data, 240, &bytes_written, portMAX_DELAY);
-    digitalWrite(STATUS_LED, LOW); // LED off after playback
+    // Send audio data to playback task (non-blocking in ISR)
+    xQueueSend(audioQueue, &receivedPacket, 0);
   }
 }
 
@@ -47,6 +67,13 @@ void setup() {
   pinMode(DOORBELL_BUTTON, INPUT_PULLUP);
   pinMode(STATUS_LED, OUTPUT);
   digitalWrite(STATUS_LED, LOW); // Off initially
+
+  // Create audio queue for non-blocking playback
+  audioQueue = xQueueCreate(10, sizeof(packet_t)); // Buffer up to 10 audio packets
+  if (audioQueue == NULL) {
+    Serial.println("Failed to create audio queue");
+    return;
+  }
 
   // I2S for voice
   i2s_config_t i2s_config_voice = {
@@ -89,24 +116,36 @@ void setup() {
     return;
   }
 
+  // Create audio playback task
+  xTaskCreate(audioPlaybackTask, "AudioPlayback", 2048, NULL, 2, NULL);
+
   // Indicate successful initialization
   digitalWrite(STATUS_LED, HIGH);
   Serial.println("RX unit initialized successfully");
 }
 
 void loop() {
-  // Doorbell button
+  // Non-blocking doorbell button debouncing
   static bool lastDoorbell = HIGH;
+  static unsigned long lastDebounceTime = 0;
+  const unsigned long debounceDelay = 50; // 50ms debounce
+
   bool currentDoorbell = digitalRead(DOORBELL_BUTTON);
-  if (lastDoorbell == HIGH && currentDoorbell == LOW) {
-    // Debounce
-    delay(50);
-    // Send chime to TX
-    digitalWrite(STATUS_LED, HIGH); // LED on during chime send
-    packet_t chimePacket;
-    chimePacket.type = 1;
-    esp_now_send(txMAC, (uint8_t *)&chimePacket, sizeof(packet_t));
-    digitalWrite(STATUS_LED, LOW); // LED off after send
+  if (currentDoorbell != lastDoorbell) {
+    lastDebounceTime = millis(); // Reset debounce timer
   }
+
+  if ((millis() - lastDebounceTime) > debounceDelay) {
+    // Button state has been stable for debounceDelay ms
+    if (lastDoorbell == HIGH && currentDoorbell == LOW) {
+      // Button pressed (after debouncing)
+      digitalWrite(STATUS_LED, HIGH); // LED on during chime send
+      packet_t chimePacket;
+      chimePacket.type = 1;
+      esp_now_send(txMAC, (uint8_t *)&chimePacket, sizeof(packet_t));
+      digitalWrite(STATUS_LED, LOW); // LED off after send
+    }
+  }
+
   lastDoorbell = currentDoorbell;
 }

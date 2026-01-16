@@ -15,12 +15,41 @@ uint8_t rxMAC[] = {0x00, 0x70, 0x07, 0x7C, 0x4A, 0x88};
 
 // Global state
 volatile bool chimePlaying = false;
+SemaphoreHandle_t chimeMutex;
+
+// Task handles
+TaskHandle_t chimeTaskHandle = NULL;
 
 // Packet structure
 typedef struct {
   int type; // 1: chime, 2: audio
   uint8_t data[240];
 } packet_t;
+
+// Chime task function
+void chimeTask(void *pvParameters) {
+  while (true) {
+    // Wait for chime signal
+    ulTaskNotifyTake(pdTRUE, portMAX_DELAY);
+
+    // Set chime playing flag with mutex protection
+    if (xSemaphoreTake(chimeMutex, portMAX_DELAY) == pdTRUE) {
+      chimePlaying = true;
+      xSemaphoreGive(chimeMutex);
+    }
+
+    // Play chime with LED indication
+    digitalWrite(STATUS_LED, HIGH);
+    playRailwayAnnouncementChime();
+    digitalWrite(STATUS_LED, LOW);
+
+    // Clear chime playing flag with mutex protection
+    if (xSemaphoreTake(chimeMutex, portMAX_DELAY) == pdTRUE) {
+      chimePlaying = false;
+      xSemaphoreGive(chimeMutex);
+    }
+  }
+}
 
 // Indian Railway announcement chime function
 void playRailwayAnnouncementChime() {
@@ -40,26 +69,35 @@ void playRailwayAnnouncementChime() {
 
 // ESP-NOW callback
 void OnDataSent(const wifi_tx_info_t *tx_info, esp_now_send_status_t status) {
-  // Optional: handle send status
+  if (status == ESP_NOW_SEND_SUCCESS) {
+    // Serial.println("TX: Send success");
+  } else {
+    Serial.println("TX: Send failed");
+  }
 }
 
 void OnDataRecv(const esp_now_recv_info *recv_info, const uint8_t *incomingData, int len) {
   packet_t receivedPacket; // Local packet for received data
   memcpy(&receivedPacket, incomingData, sizeof(packet_t));
   if (receivedPacket.type == 1) {
-    // Play railway announcement chime
-    chimePlaying = true;
-    digitalWrite(STATUS_LED, HIGH); // LED on during chime
-    playRailwayAnnouncementChime();
-    digitalWrite(STATUS_LED, LOW); // LED off after chime
-    chimePlaying = false;
+    // Signal chime task to play (non-blocking in ISR)
+    if (chimeTaskHandle != NULL) {
+      xTaskNotifyGive(chimeTaskHandle);
+    }
   }
 }
 
 // Task for audio transmission
 void audioTransmitTask(void *pvParameters) {
   while (true) {
-    if (!chimePlaying && digitalRead(TALK_BUTTON) == LOW) {
+    bool isChimePlaying = false;
+    // Check chimePlaying flag with mutex protection
+    if (xSemaphoreTake(chimeMutex, portMAX_DELAY) == pdTRUE) {
+      isChimePlaying = chimePlaying;
+      xSemaphoreGive(chimeMutex);
+    }
+
+    if (!isChimePlaying && digitalRead(TALK_BUTTON) == LOW) {
       digitalWrite(STATUS_LED, HIGH); // LED on during voice transmission
       packet_t txPacket; // Local packet for transmission
       txPacket.type = 2;
@@ -84,6 +122,13 @@ void setup() {
   pinMode(STATUS_LED, OUTPUT);
   digitalWrite(STATUS_LED, LOW); // Off initially
 
+  // Create mutex for chimePlaying flag
+  chimeMutex = xSemaphoreCreateMutex();
+  if (chimeMutex == NULL) {
+    Serial.println("Failed to create chime mutex");
+    return;
+  }
+
   // WiFi
   WiFi.mode(WIFI_STA);
 
@@ -107,6 +152,9 @@ void setup() {
 
   // Create audio transmit task
   xTaskCreate(audioTransmitTask, "AudioTransmit", 2048, NULL, 1, NULL);
+
+  // Create chime task
+  xTaskCreate(chimeTask, "ChimeTask", 2048, NULL, 2, &chimeTaskHandle);
 
   // Indicate successful initialization
   digitalWrite(STATUS_LED, HIGH);
